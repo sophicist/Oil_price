@@ -1,0 +1,196 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+---
+title: "Oil Prices Analysis"
+author: "Kamau Kamau"
+date: "15/10/2019"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,message =F,warning  =F,fig.width =10,fig.height =7)
+
+```
+
+# Oil Prices in Kenya
+
+Introduction
+-----
+
+I used to work in a petrol station as an accountant. Each month on the 14th of every month the prices of diesel,kerosene and petrol would change as the government set a price ceiling that  would be followed by every fuel reseller. The main challenge was that fuel stocks would be subject to new prices regardless of the buying price of the stock. This meant that if the prices fell too low, the stocks would sell at a loss, on the other hand if the prices went up, the stocks would get a good profit.
+The safest strategy was to make sure that the stocks were low during this period such that there would be no effect regardless of the price movement - this however could backfire where the demand for the fuel after the price changes would cause delays and therefore cause a situation where petrol stations have no fuel to sell on the 15 of the month. A better approach is to try and predict the price of the fuel price that will be set before its set and therefore make the decision on how much stock to hold more efficiently.
+
+
+#  The ERC (EPRA)
+
+The oil prices come from the  Energy & Petroleum regulatory Authority(EPRA) that was formally known as ERC.The Energy and Petroleum Regulatory Authority (EPRA) is established as the successor to the Energy Regulatory Commission (ERC) under the Energy Act, 2019 with an expanded mandate of inter alia regulation of upstream petroleum and coal.Essentially, the EPRA regulate generation, transportation and transmission of electrical, crude oil , renewable energy etc and they set the prices of fuel here in Kenya.
+
+
+# the Data
+
+collection
+-----
+The data was collected from the Energy & Petroleum regulatory Authority where each month on the 14, the authority changes the fuel prices and documents them on their website. The data comprises the recomended oil prices for all the regions in Kenya. For this dataset, Only the prices for Nairobi were taked being that Nairobi is a centa location as well as the capital city of Kenya and therefore the prices are representative of the country.
+The oil prices per barell were also taken from the EPRA report each month.
+The exchange rates were taken from the cetral bank datasets on:https://www.centralbank.go.ke/rates/forex-exchange-rates/.
+
+Data composition
+-----
+the data has the following variables:
+
+* Exrates: Monthly Exchange rates
+
+* PMS: Super Petrol prices
+
+* Ago: Diesel prices
+
+* Kero: Kerosene Prices
+
+Average: the mean value of diesel,Kerosene and Super prices. $ \frac{PMS+AGO+Kero}{3} $
+
+the data comprises of Prices of oil per barell, the monthly exchange rates as well as the monthly prices of crude oil in kenya from 2010 - 2019(October).
+We convert the barell to Kenyan shilling and then convert the barell to litres to get the price in Kenyan shilling for each litre of crude oil. The conversion is: 1 Barell = 158.99 L. we can create an average variable that gets the average price for the kerosene,Ago(Diesel) and PMS(Super Petrol) so that we can approximate how much a litre of crude oil sells in Kenya.
+
+The variable PPB_ksh is the price of crude oil (per litre(converted: 1 barrel = 158.99 Ltrs) converted to Kenyan currency)
+
+```{r}
+library(dplyr)
+library(reshape2)
+library(tidyverse)
+library(ggthemes)
+library(knitr)
+df <- read.csv("~/Aesops/Datasets/oil/clean_oil.csv")
+head(df) %>% kable()
+df$PPB_ksh =(df$Price.Per.Barell*df$Exrates)/158.99
+#head(df)
+df %>%dplyr::select(Date,PMS,AGO,Kero,PPB_ksh) %>% mutate(Date =as.Date(Date)) %>% melt(id.vars = "Date") %>% ggplot(aes(x =Date,y=value,color =variable))+geom_line()+labs(title = "Movement of Oil Prices",y = "Price in Ksh",x = "Time in Years")+theme_classic()+theme(plot.title = element_text(hjust = 0.5))+theme(plot.title = element_text(face = "bold"))+ theme(legend.position="bottom")
+```
+
+The main take from this graph is that the movement of the prices that are set by the EPRA are identical to the movement of the price of crude oil in the international market. This means that the crude oil prices can be used to predict the prices that will be set by the EPRA ahead of the 14th date.
+
+The following graph shows the relationship better with the prices of PMS, Diesel and Kerosene Averaged Out
+
+
+```{r}
+
+df  %>%dplyr::select(Date,Average,PPB_ksh) %>% mutate(Date =as.Date(Date)) %>% melt(id.vars = "Date") %>% ggplot(aes(x =Date,y = value,color =variable))+geom_line()+labs(title = "Kenya Oil Prices vs Price per Barell",y = "Prices in Ksh",x = "Time in years")+theme_classic()+theme(plot.title = element_text(hjust = 0.5))+theme(plot.title = element_text(face = "bold"))+ theme(legend.position="bottom")
+
+```
+
+I found this very interesting. The average price mirrors changes  in the international market almost exactly and therefore if we have the international market price its possible to predict the price of fuel in Kenya.
+It  will be interesting to find out if this relationship exist through a scatter plot with the regression line estimated to show how the averaged prices and the prices per barell move together.
+
+```{r}
+df %>% dplyr::select(Date,Average,PPB_ksh) %>% mutate(Date =as.Date(Date)) %>% ggplot(aes(Average,PPB_ksh))+geom_point()+geom_smooth(method ="lm",se = T)+labs(title = "Kenya Oil Prices vs Price per Barell Scattter Plot")+theme_classic()+theme(plot.title = element_text(hjust = 0.5))+theme(plot.title = element_text(face = "bold"))
+```
+
+Evidently, there is a linear relationship between the two prices.
+
+# The Regression Model
+
+We can train a regression model as follows:
+ 
+ $ Average = \beta_0 + \beta_1 PPBksh $
+ 
+for validation, we split the data into two groups, the train data has 75% of the dataset while the test data has 25% of the data.
+The following is the output from the model, please note that the low P value shows that the variable is statistically significant.
+The model has a very low Mean Absolute Error of 5  (shows that the model is a good fit)
+
+
+
+```{r}
+
+set.seed(101) # Set Seed so that same sample can be reproduced in future also
+# Now Selecting 75% of data as sample from total 'n' rows of the data  
+sample <- sample.int(n = nrow(df), size = floor(.75*nrow(df)), replace = F)
+train <- df[sample, ]
+test  <- df[-sample, ]
+
+model <- lm(Average~PPB_ksh,data = train)
+library(modelr)
+mae(model,test)
+summary(model) %>% broom::tidy() %>% kable()
+
+```
+
+# performance
+
+```{r}
+# MAE
+library(modelr)
+mae(model,test)
+library(lubridate)
+x = data.frame(predicted = predict(model),actual = train$Average,Date =train$Date)
+x %>%melt(id.vars = "Date") %>%  
+  ggplot(aes(y = value,x = date(Date),color = variable ))+
+  geom_line()+
+  labs(title = "Actual Vs Predicted",
+       y = "Amount in Ksh")+theme_classic()+theme(plot.title = element_text(hjust = 0.5))+ theme(legend.position="bottom")
+```
+
+The Mean Absolute Error which is a method for measuring the performance of a regression model is 5.35 for this model.  This is still quite high and suggests that a better model would be better.
+
+From the above graph, the prediction isnt too bad, however, it still isnt good enough for someone to entirely rely on it.You can atleast rely on it to give you the general trend, like it will tell you if the prices will go up or dowm but fail to predict accurately by how much. 
+
+However on plotting the model metrics, we see that some of the assumptions made in linear regression have been violated.
+What are the assumptions that we have made using this model?
+
+1. A straight line was the best way to model the overall relationship between Average and price per barell.
+
+2. The noise terms  εi  all have the same variance.
+
+3. The noise terms  εi  are normally distributed.
+
+4. The error terms are independent. (i.i.d. stands for "independent and identically distributed".)
+
+We have names for each of the assumptions:
+
+* Linearity
+* Constant variance (homoscedasticity)
+* Normality
+* Independence
+
+# Residuals Vs Fitted
+
+the red line is supposed to be straight if the assumption of lineality isnt violated. the fact that the line has a curve means that there is a pattern within the residuals and therefore the linear regression isnt the best model for this particular data.
+
+```{r}
+plot(model,which=1)
+```
+
+# Constant Spread
+
+This graph looks at the spread of the data ( the variance),We plot the square root of the standardised residuals. Again the line should be straight so this assumption has been violated as well.
+
+```{r}
+plot(model,which=3)
+```
+
+# Normality
+
+for normality it is best to plot a qq graph. The qq graph compares whether the theoretical normal curve approximates the data poits in this data and therefore we can say that the points are normally distributed.The points should be along the diagonal and so this assumption largely holds for this data.
+
+```{r}
+plot(model,which =  2)
+```
+
+# Way forward
+
+So this completes our analysis on the Oil datatset. We have seen that the price of crude oil is a good predictor for the prices of the Oil prices in Kenya. Linear regression can be used to approximate the prices but as we have seen, this violates some of the lineariy assumptions which suggests that more complex models may be better at approximating this relationship that is non linear.
+
+Limitations and Suggested Methods
+-----
+
+1. Gradient Boosting methods
+2. Tree based models (such as Random forest or decision trees)
+3. Ensemble methods
+
+It would also be wise to use time series models to detrend the data since time has an effect on the data. The dataset is also relatively small an this affects the prediction power of the models but there exists models that are robust even on small datastets.Collecting more data would also help the model performance as well as use of more variables in the estimation. 
+
