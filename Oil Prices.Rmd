@@ -66,11 +66,20 @@ library(reshape2)
 library(tidyverse)
 library(ggthemes)
 library(knitr)
+library(readxl)
+library(janitor)
+dir()
 df <- read.csv("~/Aesops/Datasets/oil/clean_oil.csv")
+head(df)
+names(df)
+df <-read_excel("Oil_prices_master_file.xlsx") %>% clean_names()
+names(df)<-c("X", "Date", "Price.Per.Barell", "Exrates", "PMS", "AGO", "Kero", "Average")
+df$Average <- (df$PMS + df$AGO +df$Kero)/3
 head(df) %>% kable()
 df$PPB_ksh =(df$Price.Per.Barell*df$Exrates)/158.99
 #head(df)
-df %>%dplyr::select(Date,PMS,AGO,Kero,PPB_ksh) %>% mutate(Date =as.Date(Date)) %>% melt(id.vars = "Date") %>% ggplot(aes(x =Date,y=value,color =variable))+geom_line()+labs(title = "Movement of Oil Prices",y = "Price in Ksh",x = "Time in Years")+theme_classic()+theme(plot.title = element_text(hjust = 0.5))+theme(plot.title = element_text(face = "bold"))+ theme(legend.position="bottom")
+df <- df %>% mutate(Date =as.Date(Date,format = "%d/%m/%Y"))
+df %>%dplyr::select(Date,PMS,AGO,Kero,PPB_ksh)  %>% melt(id.vars = "Date") %>% ggplot(aes(x =Date,y=value,color =variable))+geom_line()+labs(title = "Movement of Oil Prices",y = "Price in Ksh",x = "Time in Years")+theme_classic()+theme(plot.title = element_text(hjust = 0.5))+theme(plot.title = element_text(face = "bold"))+ theme(legend.position="bottom")
 ```
 
 The main take from this graph is that the movement of the prices that are set by the EPRA are identical to the movement of the price of crude oil in the international market. This means that the crude oil prices can be used to predict the prices that will be set by the EPRA ahead of the 14th date.
@@ -193,4 +202,8 @@ Limitations and Suggested Methods
 3. Ensemble methods
 
 It would also be wise to use time series models to detrend the data since time has an effect on the data. The dataset is also relatively small an this affects the prediction power of the models but there exists models that are robust even on small datastets.Collecting more data would also help the model performance as well as use of more variables in the estimation. 
+
+```{r}
+write.csv(df,"Oil_prices_cleaned.csv")
+```
 
